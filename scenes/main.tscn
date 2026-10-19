@@ -1,0 +1,374 @@
+[gd_scene load_steps=12 format=3]
+
+[ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
+[ext_resource type="Script" path="res://scripts/editor/camera_rig.gd" id="2_camera"]
+[ext_resource type="Script" path="res://scripts/editor/grid.gd" id="3_grid"]
+[ext_resource type="Script" path="res://scripts/editor/editor_controller.gd" id="4_editor"]
+[ext_resource type="Script" path="res://scripts/ui/selection_box.gd" id="5_selection"]
+
+[sub_resource type="ProceduralSkyMaterial" id="SkyMaterial_editor"]
+sky_top_color = Color(0.055, 0.075, 0.11, 1)
+sky_horizon_color = Color(0.13, 0.17, 0.23, 1)
+sky_curve = 0.18
+ground_bottom_color = Color(0.025, 0.03, 0.04, 1)
+ground_horizon_color = Color(0.1, 0.12, 0.16, 1)
+
+[sub_resource type="Sky" id="Sky_editor"]
+sky_material = SubResource("SkyMaterial_editor")
+
+[sub_resource type="Environment" id="Environment_editor"]
+background_mode = 2
+sky = SubResource("Sky_editor")
+ambient_light_source = 3
+ambient_light_sky_contribution = 1.0
+ambient_light_energy = 0.75
+reflected_light_source = 2
+tonemap_mode = 2
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
+bg_color = Color(0.047, 0.059, 0.078, 0.9)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.32, 0.4, 0.5, 0.3)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+shadow_color = Color(0, 0, 0, 0.28)
+shadow_size = 8
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_badge"]
+bg_color = Color(0.22, 0.115, 0.035, 0.72)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(1, 0.62, 0.16, 0.5)
+corner_radius_top_left = 7
+corner_radius_top_right = 7
+corner_radius_bottom_right = 7
+corner_radius_bottom_left = 7
+
+[sub_resource type="StyleBoxLine" id="StyleBoxLine_separator"]
+color = Color(0.35, 0.43, 0.54, 0.3)
+thickness = 1
+
+[node name="Main" type="Node3D"]
+script = ExtResource("1_main")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_editor")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.819, 0, 0.574, 0.4397, 0.6428, -0.6274, -0.369, 0.766, 0.5265, 6, 12, 6)
+light_color = Color(1, 0.96, 0.9, 1)
+light_energy = 1.15
+shadow_enabled = true
+directional_shadow_max_distance = 80.0
+
+[node name="Grid" type="Node3D" parent="."]
+script = ExtResource("3_grid")
+
+[node name="CameraRig" type="Node3D" parent="."]
+script = ExtResource("2_camera")
+
+[node name="Camera3D" type="Camera3D" parent="CameraRig"]
+current = true
+fov = 50.0
+near = 0.05
+far = 600.0
+
+[node name="Points" type="Node3D" parent="."]
+
+[node name="Editor" type="Node3D" parent="."]
+script = ExtResource("4_editor")
+
+[node name="UI" type="CanvasLayer" parent="."]
+
+[node name="SelectionBox" type="Control" parent="UI"]
+unique_name_in_owner = true
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("5_selection")
+
+[node name="HUD" type="Control" parent="UI"]
+unique_name_in_owner = true
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Margin" type="MarginContainer" parent="UI/HUD"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_top = 24
+theme_override_constants/margin_right = 24
+theme_override_constants/margin_bottom = 22
+
+[node name="VBox" type="VBoxContainer" parent="UI/HUD/Margin"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 14
+
+[node name="TopRow" type="HBoxContainer" parent="UI/HUD/Margin/VBox"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 12
+
+[node name="BrandPanel" type="PanelContainer" parent="UI/HUD/Margin/VBox/TopRow"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
+
+[node name="BrandMargin" type="MarginContainer" parent="UI/HUD/Margin/VBox/TopRow/BrandPanel"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/margin_left = 18
+theme_override_constants/margin_top = 13
+theme_override_constants/margin_right = 20
+theme_override_constants/margin_bottom = 14
+
+[node name="BrandVBox" type="VBoxContainer" parent="UI/HUD/Margin/VBox/TopRow/BrandPanel/BrandMargin"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 3
+
+[node name="Title" type="Label" parent="UI/HUD/Margin/VBox/TopRow/BrandPanel/BrandMargin/BrandVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.96, 0.98, 1, 1)
+theme_override_font_sizes/font_size = 25
+text = "ASSEMBLY FORGE"
+
+[node name="Subtitle" type="Label" parent="UI/HUD/Margin/VBox/TopRow/BrandPanel/BrandMargin/BrandVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.56, 0.66, 0.79, 1)
+theme_override_font_sizes/font_size = 11
+text = "РЕДАКТОР  ·  ШАГ 1 — КАРКАС И УПРАВЛЕНИЕ"
+
+[node name="Accent" type="ColorRect" parent="UI/HUD/Margin/VBox/TopRow/BrandPanel/BrandMargin/BrandVBox"]
+custom_minimum_size = Vector2(58, 3)
+layout_mode = 2
+size_flags_horizontal = 0
+mouse_filter = 2
+color = Color(1, 0.62, 0.16, 1)
+
+[node name="TopSpacer" type="Control" parent="UI/HUD/Margin/VBox/TopRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+
+[node name="BadgePanel" type="PanelContainer" parent="UI/HUD/Margin/VBox/TopRow"]
+layout_mode = 2
+size_flags_vertical = 0
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_badge")
+
+[node name="BadgeMargin" type="MarginContainer" parent="UI/HUD/Margin/VBox/TopRow/BadgePanel"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/margin_left = 13
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 13
+theme_override_constants/margin_bottom = 8
+
+[node name="BadgeLabel" type="Label" parent="UI/HUD/Margin/VBox/TopRow/BadgePanel/BadgeMargin"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.68, 0.28, 1)
+theme_override_font_sizes/font_size = 10
+text = "STEP 01  ·  ПРОТОТИП"
+
+[node name="MidSpacer" type="Control" parent="UI/HUD/Margin/VBox"]
+layout_mode = 2
+size_flags_vertical = 3
+mouse_filter = 2
+
+[node name="BottomRow" type="HBoxContainer" parent="UI/HUD/Margin/VBox"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 12
+
+[node name="ControlsPanel" type="PanelContainer" parent="UI/HUD/Margin/VBox/BottomRow"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
+
+[node name="ControlsMargin" type="MarginContainer" parent="UI/HUD/Margin/VBox/BottomRow/ControlsPanel"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/margin_left = 18
+theme_override_constants/margin_top = 13
+theme_override_constants/margin_right = 18
+theme_override_constants/margin_bottom = 14
+
+[node name="ControlsVBox" type="VBoxContainer" parent="UI/HUD/Margin/VBox/BottomRow/ControlsPanel/ControlsMargin"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 5
+
+[node name="ControlsTitle" type="Label" parent="UI/HUD/Margin/VBox/BottomRow/ControlsPanel/ControlsMargin/ControlsVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.62, 0.16, 0.9)
+theme_override_font_sizes/font_size = 10
+text = "УПРАВЛЕНИЕ"
+
+[node name="Hint1" type="Label" parent="UI/HUD/Margin/VBox/BottomRow/ControlsPanel/ControlsMargin/ControlsVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.78, 0.84, 0.92, 1)
+theme_override_font_sizes/font_size = 13
+text = "ЛКМ по точке  ·  выбрать и переместить (привязка к сетке)"
+
+[node name="Hint2" type="Label" parent="UI/HUD/Margin/VBox/BottomRow/ControlsPanel/ControlsMargin/ControlsVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.78, 0.84, 0.92, 1)
+theme_override_font_sizes/font_size = 13
+text = "Shift + ЛКМ  ·  рамка выделения"
+
+[node name="Hint3" type="Label" parent="UI/HUD/Margin/VBox/BottomRow/ControlsPanel/ControlsMargin/ControlsVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.78, 0.84, 0.92, 1)
+theme_override_font_sizes/font_size = 13
+text = "ПКМ  ·  вращение камеры; клик ПКМ снимает выделение"
+
+[node name="Hint4" type="Label" parent="UI/HUD/Margin/VBox/BottomRow/ControlsPanel/ControlsMargin/ControlsVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.78, 0.84, 0.92, 1)
+theme_override_font_sizes/font_size = 13
+text = "СКМ  ·  панорама   ·   колесо  ·  зум   ·   Home  ·  сброс камеры"
+
+[node name="Hint5" type="Label" parent="UI/HUD/Margin/VBox/BottomRow/ControlsPanel/ControlsMargin/ControlsVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.78, 0.84, 0.92, 1)
+theme_override_font_sizes/font_size = 13
+text = "Delete  ·  удалить   ·   Ctrl+Z / Ctrl+Shift+Z  ·  отмена / повтор"
+
+[node name="BottomSpacer" type="Control" parent="UI/HUD/Margin/VBox/BottomRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+
+[node name="StatusPanel" type="PanelContainer" parent="UI/HUD/Margin/VBox/BottomRow"]
+custom_minimum_size = Vector2(250, 0)
+layout_mode = 2
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
+
+[node name="StatusMargin" type="MarginContainer" parent="UI/HUD/Margin/VBox/BottomRow/StatusPanel"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/margin_left = 18
+theme_override_constants/margin_top = 13
+theme_override_constants/margin_right = 18
+theme_override_constants/margin_bottom = 14
+
+[node name="StatusVBox" type="VBoxContainer" parent="UI/HUD/Margin/VBox/BottomRow/StatusPanel/StatusMargin"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 6
+
+[node name="StatusTitle" type="Label" parent="UI/HUD/Margin/VBox/BottomRow/StatusPanel/StatusMargin/StatusVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.62, 0.16, 0.9)
+theme_override_font_sizes/font_size = 10
+text = "СОСТОЯНИЕ"
+
+[node name="SelectionRow" type="HBoxContainer" parent="UI/HUD/Margin/VBox/BottomRow/StatusPanel/StatusMargin/StatusVBox"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 8
+
+[node name="Caption" type="Label" parent="UI/HUD/Margin/VBox/BottomRow/StatusPanel/StatusMargin/StatusVBox/SelectionRow"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.56, 0.66, 0.79, 1)
+theme_override_font_sizes/font_size = 12
+text = "Выбрано"
+
+[node name="SelectionValue" type="Label" parent="UI/HUD/Margin/VBox/BottomRow/StatusPanel/StatusMargin/StatusVBox/SelectionRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.9, 0.94, 1, 1)
+theme_override_font_sizes/font_size = 12
+text = "0 / 7"
+horizontal_alignment = 2
+
+[node name="GridRow" type="HBoxContainer" parent="UI/HUD/Margin/VBox/BottomRow/StatusPanel/StatusMargin/StatusVBox"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 8
+
+[node name="Caption" type="Label" parent="UI/HUD/Margin/VBox/BottomRow/StatusPanel/StatusMargin/StatusVBox/GridRow"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.56, 0.66, 0.79, 1)
+theme_override_font_sizes/font_size = 12
+text = "Шаг сетки"
+
+[node name="GridValue" type="Label" parent="UI/HUD/Margin/VBox/BottomRow/StatusPanel/StatusMargin/StatusVBox/GridRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.9, 0.94, 1, 1)
+theme_override_font_sizes/font_size = 12
+text = "0.50 м"
+horizontal_alignment = 2
+
+[node name="Separator" type="HSeparator" parent="UI/HUD/Margin/VBox/BottomRow/StatusPanel/StatusMargin/StatusVBox"]
+layout_mode = 2
+theme_override_styles/separator = SubResource("StyleBoxLine_separator")
+
+[node name="UndoRow" type="HBoxContainer" parent="UI/HUD/Margin/VBox/BottomRow/StatusPanel/StatusMargin/StatusVBox"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 8
+
+[node name="Caption" type="Label" parent="UI/HUD/Margin/VBox/BottomRow/StatusPanel/StatusMargin/StatusVBox/UndoRow"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.56, 0.66, 0.79, 1)
+theme_override_font_sizes/font_size = 12
+text = "Отмена"
+
+[node name="UndoValue" type="Label" parent="UI/HUD/Margin/VBox/BottomRow/StatusPanel/StatusMargin/StatusVBox/UndoRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.9, 0.94, 1, 1)
+theme_override_font_sizes/font_size = 12
+text = "—"
+horizontal_alignment = 2
+text_overrun_behavior = 3
+
+[node name="RedoRow" type="HBoxContainer" parent="UI/HUD/Margin/VBox/BottomRow/StatusPanel/StatusMargin/StatusVBox"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 8
+
+[node name="Caption" type="Label" parent="UI/HUD/Margin/VBox/BottomRow/StatusPanel/StatusMargin/StatusVBox/RedoRow"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.56, 0.66, 0.79, 1)
+theme_override_font_sizes/font_size = 12
+text = "Повтор"
+
+[node name="RedoValue" type="Label" parent="UI/HUD/Margin/VBox/BottomRow/StatusPanel/StatusMargin/StatusVBox/RedoRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.9, 0.94, 1, 1)
+theme_override_font_sizes/font_size = 12
+text = "—"
+horizontal_alignment = 2
+text_overrun_behavior = 3
