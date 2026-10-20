@@ -82,6 +82,8 @@ far = 600.0
 
 [node name="Points" type="Node3D" parent="."]
 
+[node name="Structures" type="Node3D" parent="."]
+
 [node name="Editor" type="Node3D" parent="."]
 script = ExtResource("4_editor")
 
@@ -159,7 +161,7 @@ text = "ASSEMBLY FORGE"
 layout_mode = 2
 theme_override_colors/font_color = Color(0.56, 0.66, 0.79, 1)
 theme_override_font_sizes/font_size = 11
-text = "РЕДАКТОР  ·  ШАГ 1 — КАРКАС И УПРАВЛЕНИЕ"
+text = "РЕДАКТОР  ·  BLENDER-STYLE  ·  G / E / F / M"
 
 [node name="Accent" type="ColorRect" parent="UI/HUD/Margin/VBox/TopRow/BrandPanel/BrandMargin/BrandVBox"]
 custom_minimum_size = Vector2(58, 3)
@@ -191,7 +193,7 @@ theme_override_constants/margin_bottom = 8
 layout_mode = 2
 theme_override_colors/font_color = Color(1, 0.68, 0.28, 1)
 theme_override_font_sizes/font_size = 10
-text = "STEP 01  ·  ПРОТОТИП"
+text = "G / E / F / M  ·  ИНСТРУМЕНТЫ"
 
 [node name="MidSpacer" type="Control" parent="UI/HUD/Margin/VBox"]
 layout_mode = 2
@@ -221,6 +223,13 @@ layout_mode = 2
 mouse_filter = 2
 theme_override_constants/separation = 5
 
+[node name="ContextHint" type="Label" parent="UI/HUD/Margin/VBox/BottomRow/ControlsPanel/ControlsMargin/ControlsVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.66, 0.74, 0.84, 1)
+theme_override_font_sizes/font_size = 13
+text = "ЛКМ — выбрать точку или деталь"
+
 [node name="ControlsTitle" type="Label" parent="UI/HUD/Margin/VBox/BottomRow/ControlsPanel/ControlsMargin/ControlsVBox"]
 layout_mode = 2
 theme_override_colors/font_color = Color(1, 0.62, 0.16, 0.9)
@@ -231,31 +240,37 @@ text = "УПРАВЛЕНИЕ"
 layout_mode = 2
 theme_override_colors/font_color = Color(0.78, 0.84, 0.92, 1)
 theme_override_font_sizes/font_size = 13
-text = "ЛКМ по точке  ·  выбрать и переместить (привязка к сетке)"
+text = "ЛКМ — выбрать  ·  Shift+ЛКМ — добавить / рамка"
 
 [node name="Hint2" type="Label" parent="UI/HUD/Margin/VBox/BottomRow/ControlsPanel/ControlsMargin/ControlsVBox"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.78, 0.84, 0.92, 1)
 theme_override_font_sizes/font_size = 13
-text = "Shift + ЛКМ  ·  рамка выделения"
+text = "G — двигать  ·  E — выдавить  ·  F — заполнить  ·  M — сварить"
 
 [node name="Hint3" type="Label" parent="UI/HUD/Margin/VBox/BottomRow/ControlsPanel/ControlsMargin/ControlsVBox"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.78, 0.84, 0.92, 1)
 theme_override_font_sizes/font_size = 13
-text = "ПКМ  ·  вращение камеры; клик ПКМ снимает выделение"
+text = "G/E: X / Y / Z — осевой замок  ·  ЛКМ — подтвердить  ·  ПКМ / Esc — отмена"
 
 [node name="Hint4" type="Label" parent="UI/HUD/Margin/VBox/BottomRow/ControlsPanel/ControlsMargin/ControlsVBox"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.78, 0.84, 0.92, 1)
 theme_override_font_sizes/font_size = 13
-text = "СКМ  ·  панорама   ·   колесо  ·  зум   ·   Home  ·  сброс камеры"
+text = "M — сварить точки / 2 балки  ·  Ctrl+M — в первую  ·  Ctrl+Shift+M — в последнюю"
 
 [node name="Hint5" type="Label" parent="UI/HUD/Margin/VBox/BottomRow/ControlsPanel/ControlsMargin/ControlsVBox"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.78, 0.84, 0.92, 1)
 theme_override_font_sizes/font_size = 13
-text = "Delete  ·  удалить   ·   Ctrl+Z / Ctrl+Shift+Z  ·  отмена / повтор"
+text = "СКМ — вращение  ·  Shift+СКМ — панорама  ·  Alt+ЛКМ — вращение"
+
+[node name="Hint6" type="Label" parent="UI/HUD/Margin/VBox/BottomRow/ControlsPanel/ControlsMargin/ControlsVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.78, 0.84, 0.92, 1)
+theme_override_font_sizes/font_size = 13
+text = "колесо — зум  ·  Home — сброс  ·  X / Delete — удалить  ·  Ctrl+Z / Ctrl+Shift+Z — отмена / повтор"
 
 [node name="BottomSpacer" type="Control" parent="UI/HUD/Margin/VBox/BottomRow"]
 layout_mode = 2
@@ -304,7 +319,47 @@ layout_mode = 2
 size_flags_horizontal = 3
 theme_override_colors/font_color = Color(0.9, 0.94, 1, 1)
 theme_override_font_sizes/font_size = 12
-text = "0 / 7"
+text = "0"
+horizontal_alignment = 2
+
+[node name="PointsRow" type="HBoxContainer" parent="UI/HUD/Margin/VBox/BottomRow/StatusPanel/StatusMargin/StatusVBox"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 8
+
+[node name="Caption" type="Label" parent="UI/HUD/Margin/VBox/BottomRow/StatusPanel/StatusMargin/StatusVBox/PointsRow"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.56, 0.66, 0.79, 1)
+theme_override_font_sizes/font_size = 12
+text = "Точек"
+
+[node name="PointsValue" type="Label" parent="UI/HUD/Margin/VBox/BottomRow/StatusPanel/StatusMargin/StatusVBox/PointsRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.9, 0.94, 1, 1)
+theme_override_font_sizes/font_size = 12
+text = "0"
+horizontal_alignment = 2
+
+[node name="PartsRow" type="HBoxContainer" parent="UI/HUD/Margin/VBox/BottomRow/StatusPanel/StatusMargin/StatusVBox"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 8
+
+[node name="Caption" type="Label" parent="UI/HUD/Margin/VBox/BottomRow/StatusPanel/StatusMargin/StatusVBox/PartsRow"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.56, 0.66, 0.79, 1)
+theme_override_font_sizes/font_size = 12
+text = "Деталей"
+
+[node name="PartsValue" type="Label" parent="UI/HUD/Margin/VBox/BottomRow/StatusPanel/StatusMargin/StatusVBox/PartsRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.9, 0.94, 1, 1)
+theme_override_font_sizes/font_size = 12
+text = "0"
 horizontal_alignment = 2
 
 [node name="GridRow" type="HBoxContainer" parent="UI/HUD/Margin/VBox/BottomRow/StatusPanel/StatusMargin/StatusVBox"]

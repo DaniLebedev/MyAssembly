@@ -1,7 +1,6 @@
 class_name EditorPoint
-extends Node3D
+extends EditorEntity
 ## Точка стыковки — базовый объект редактора.
-## На шаге 1 умеет подсвечиваться и перемещаться с привязкой к сетке.
 
 const PICK_RADIUS := 0.2
 const BASE_COLOR := Color(0.7, 0.84, 1.0)
@@ -9,8 +8,6 @@ const HOVER_COLOR := Color(0.55, 0.82, 1.0)
 const SELECTED_COLOR := Color(1.0, 0.62, 0.16)
 
 var point_id: int = 0
-var is_selected := false
-var is_hovered := false
 
 var _mesh: MeshInstance3D
 var _halo: MeshInstance3D
@@ -32,18 +29,10 @@ static func snap_to_grid(value: Vector3, step: float) -> Vector3:
 	)
 
 
-func set_selected(value: bool) -> void:
-	if is_selected == value:
-		return
-	is_selected = value
-	_refresh_visual()
-
-
-func set_hovered(value: bool) -> void:
-	if is_hovered == value:
-		return
-	is_hovered = value
-	_refresh_visual()
+func get_editor_points() -> Array[EditorPoint]:
+	var result: Array[EditorPoint] = []
+	result.append(self)
+	return result
 
 
 func _ensure_visuals() -> void:

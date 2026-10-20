@@ -1,14 +1,15 @@
 extends Node3D
-## Точка входа редактора: демо-точки и связывание UI с контроллером.
+## Точка входа редактора: демо-каркас и связывание UI с контроллером.
 
 const DEMO_POSITIONS := [
-	Vector3(-1.5, 0.5, -1.0),
-	Vector3(0.0, 0.5, -1.0),
-	Vector3(1.5, 0.5, -1.0),
-	Vector3(-1.5, 0.5, 1.0),
-	Vector3(0.0, 0.5, 1.0),
-	Vector3(1.5, 0.5, 1.0),
-	Vector3(0.0, 2.0, 0.0),
+	Vector3(-1.5, 0.5, -1.5),
+	Vector3(1.5, 0.5, -1.5),
+	Vector3(1.5, 0.5, 1.5),
+	Vector3(-1.5, 0.5, 1.5),
+	Vector3(-1.5, 2.0, -1.5),
+	Vector3(1.5, 2.0, -1.5),
+	Vector3(1.5, 2.0, 1.5),
+	Vector3(-1.5, 2.0, 1.5),
 ]
 
 @onready var _points_root: Node3D = $Points
@@ -16,7 +17,10 @@ const DEMO_POSITIONS := [
 @onready var _editor: EditorController = $Editor
 @onready var _hud: Control = %HUD
 @onready var _selection_box: SelectionBoxOverlay = %SelectionBox
+@onready var _context_hint: Label = %ContextHint
 @onready var _selection_value: Label = %SelectionValue
+@onready var _points_value: Label = %PointsValue
+@onready var _parts_value: Label = %PartsValue
 @onready var _grid_value: Label = %GridValue
 @onready var _undo_value: Label = %UndoValue
 @onready var _redo_value: Label = %RedoValue
@@ -28,6 +32,7 @@ func _ready() -> void:
 
 	_editor.selection_changed.connect(_refresh_hud)
 	_editor.history_changed.connect(_refresh_hud)
+	_editor.context_changed.connect(_refresh_hud)
 	_editor.marquee_changed.connect(_on_marquee_changed)
 	_refresh_hud()
 
@@ -47,11 +52,18 @@ func _spawn_demo_points() -> void:
 
 
 func _refresh_hud() -> void:
-	_selection_value.text = "%d / %d" % [
-		_editor.get_selected_count(),
-		_editor.get_point_count(),
-	]
+	_selection_value.text = str(_editor.get_selected_count())
+	_points_value.text = str(_editor.get_point_count())
+	_parts_value.text = str(_editor.get_structure_count())
 	_grid_value.text = "%.2f м" % _grid.grid_step
+
+	_context_hint.text = _editor.get_context_hint()
+	if _editor.is_modal_active():
+		_context_hint.modulate = Color(0.55, 0.88, 1.0, 1.0)
+	elif _editor.get_selected_count() > 0:
+		_context_hint.modulate = Color(1.0, 0.7, 0.32, 1.0)
+	else:
+		_context_hint.modulate = Color(0.66, 0.74, 0.84, 1.0)
 
 	var undo_name := _editor.get_undo_name()
 	var redo_name := _editor.get_redo_name()

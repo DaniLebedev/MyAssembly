@@ -1,7 +1,7 @@
 class_name EditorCameraRig
 extends Node3D
-## Орбитальная камера редактора: ПКМ — вращение, СКМ — панорама,
-## колесо — зум, Home — возврат к исходному виду.
+## Камера в стиле Blender: СКМ — орбита, Shift+СКМ — панорама,
+## Alt+ЛКМ — орбита, колесо — зум, Home — сброс.
 
 @export var initial_target := Vector3(0.0, 1.0, 0.0)
 @export var initial_yaw_degrees := 35.0
@@ -25,7 +25,7 @@ var _distance := 10.0
 var _goal_distance := 10.0
 
 var _orbiting := false
-var _panning := false
+var _middle_down := false
 
 @onready var camera: Camera3D = $Camera3D
 
@@ -72,13 +72,19 @@ func reset_view() -> void:
 
 func _handle_mouse_button(event: InputEventMouseButton) -> void:
 	match event.button_index:
-		MOUSE_BUTTON_RIGHT:
-			_orbiting = event.pressed
-			if not _orbiting and not _panning:
-				Input.set_default_cursor_shape(Input.CURSOR_ARROW)
+		MOUSE_BUTTON_LEFT:
+			if event.pressed and event.alt_pressed:
+				_orbiting = true
+				Input.set_default_cursor_shape(Input.CURSOR_DRAG)
+			elif not event.pressed and _orbiting:
+				_orbiting = false
+				if not _middle_down:
+					Input.set_default_cursor_shape(Input.CURSOR_ARROW)
 		MOUSE_BUTTON_MIDDLE:
-			_panning = event.pressed
-			if not _panning and not _orbiting:
+			_middle_down = event.pressed
+			if _middle_down:
+				Input.set_default_cursor_shape(Input.CURSOR_DRAG)
+			elif not _orbiting:
 				Input.set_default_cursor_shape(Input.CURSOR_ARROW)
 		MOUSE_BUTTON_WHEEL_UP:
 			if event.pressed:
@@ -90,14 +96,21 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 
 func _handle_mouse_motion(event: InputEventMouseMotion) -> void:
 	if _orbiting:
-		_goal_yaw -= deg_to_rad(event.relative.x * orbit_sensitivity)
-		_goal_pitch = clampf(
-			_goal_pitch + deg_to_rad(event.relative.y * orbit_sensitivity),
-			deg_to_rad(-85.0),
-			deg_to_rad(85.0)
-		)
-	if _panning:
-		_pan(event.relative)
+		_orbit(event.relative)
+	elif _middle_down:
+		if Input.is_key_pressed(KEY_SHIFT):
+			_pan(event.relative)
+		else:
+			_orbit(event.relative)
+
+
+func _orbit(relative: Vector2) -> void:
+	_goal_yaw -= deg_to_rad(relative.x * orbit_sensitivity)
+	_goal_pitch = clampf(
+		_goal_pitch + deg_to_rad(relative.y * orbit_sensitivity),
+		deg_to_rad(-85.0),
+		deg_to_rad(85.0)
+	)
 
 
 func _pan(relative: Vector2) -> void:
