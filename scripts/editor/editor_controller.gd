@@ -6,6 +6,10 @@ signal selection_changed
 signal history_changed
 signal context_changed
 signal marquee_changed(active: bool, rect: Rect2)
+signal spawn_preset_requested(preset_id: String)
+signal radial_started(center: Vector2)
+signal radial_hover_changed(index: int)
+signal radial_finished
 
 @export var points_root_path: NodePath = ^"../Points"
 @export var structures_root_path: NodePath = ^"../Structures"
@@ -14,6 +18,10 @@ signal marquee_changed(active: bool, rect: Rect2)
 
 const EPSILON := 0.000001
 const WELD_NEAR_DISTANCE := 1.0
+const RADIAL_PRESETS := ["cube", "plane", "beam", "hinge", "motor"]
+const RADIAL_HOLD_TIME := 0.16
+const RADIAL_DEADZONE := 34.0
+const RADIAL_DRAG_CANCEL := 14.0
 
 enum Mode {
 	NONE,
@@ -37,6 +45,13 @@ var _axis_lock := -1
 var _marquee_active := false
 var _marquee_start := Vector2.ZERO
 var _marquee_base: Array[EditorEntity] = []
+var _ui_blocked := false
+
+var _rmb_down := false
+var _rmb_start := Vector2.ZERO
+var _rmb_hold_time := 0.0
+var _radial_active := false
+var _radial_hover := -1
 
 var _grab_points: Array[EditorPoint] = []
 var _grab_old_positions: Dictionary = {}
@@ -78,7 +93,17 @@ func _ready() -> void:
 	_build_preview()
 
 
+func _process(delta: float) -> void:
+	if not _rmb_down or _radial_active or _ui_blocked:
+		return
+	_rmb_hold_time += delta
+	if _rmb_hold_time >= RADIAL_HOLD_TIME:
+		_open_radial_menu()
+
+
 func _unhandled_input(event: InputEvent) -> void:
+	if _ui_blocked:
+		return
 	if _camera == null:
 		_camera = get_viewport().get_camera_3d()
 
@@ -92,6 +117,12 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func _handle_key(event: InputEventKey) -> void:
 	if not event.pressed or event.echo or _is_typing():
+		return
+
+	if _radial_active:
+		if _matches_key(event, KEY_ESCAPE):
+			_finish_radial_menu(false)
+			get_viewport().set_input_as_handled()
 		return
 
 	if _mode != Mode.NONE:
@@ -167,12 +198,30 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 		if event.pressed:
 			if _mode != Mode.NONE:
 				_cancel_modal()
+				return
+			if _ui_blocked:
+				return
+			_rmb_down = true
+			_rmb_start = event.position
+			_rmb_hold_time = 0.0
+			_radial_active = false
+			_radial_hover = -1
+		else:
+			if _radial_active:
+				_finish_radial_menu(true)
 			else:
-				_set_selection([])
+				if _rmb_down:
+					_set_selection([])
+				_rmb_down = false
 
 
 func _handle_mouse_motion(event: InputEventMouseMotion) -> void:
-	if _mode == Mode.GRAB:
+	if _radial_active:
+		_update_radial_menu(event.position)
+	elif _rmb_down:
+		if event.position.distance_to(_rmb_start) > RADIAL_DRAG_CANCEL:
+			_rmb_down = false
+	elif _mode == Mode.GRAB:
 		_update_grab(event.position)
 	elif _mode == Mode.EXTRUDE_POINT or _mode == Mode.EXTRUDE_LINE or _mode == Mode.EXTRUDE_LOOP:
 		_update_extrude(event.position)
@@ -285,6 +334,33 @@ func _pick_structure_distance(
 	origin: Vector3,
 	direction: Vector3
 ) -> float:
+	if entity is EditorJoint:
+		var joint := entity as EditorJoint
+		var best := INF
+		var attachments := joint.get_attachment_points()
+		for i in range(attachments.size() - 1):
+			var hit := EditorGeometry.ray_segment_distance(
+				origin,
+				direction,
+				attachments[i].global_position,
+				attachments[i + 1].global_position
+			)
+			var threshold := maxf(0.34, hit.y * 0.006)
+			if hit.y > 0.0 and hit.x <= threshold and hit.y < best:
+				best = hit.y
+		if best < INF:
+			return best
+		# Если точки соединения вырождены, ловим сам корпус.
+		var center_hit := EditorGeometry.ray_segment_distance(
+			origin,
+			direction,
+			joint.global_position,
+			joint.global_position + Vector3.UP * 0.01
+		)
+		if center_hit.y > 0.0 and center_hit.x <= 0.34:
+			return center_hit.y
+		return -1.0
+
 	if entity is EditorBeam:
 		var beam := entity as EditorBeam
 		if beam.point_a == null or beam.point_b == null:
@@ -306,12 +382,12 @@ func _pick_structure_distance(
 		best = _pick_polygon(points, origin, direction)
 	elif entity is EditorCube:
 		var triangles := [
-			[0, 3, 2], [0, 2, 1],
-			[4, 5, 6], [4, 6, 7],
-			[0, 1, 5], [0, 5, 4],
-			[1, 2, 6], [1, 6, 5],
-			[2, 3, 7], [2, 7, 6],
-			[3, 0, 4], [3, 4, 7],
+			[0, 1, 2], [0, 2, 3],
+			[4, 7, 6], [4, 6, 5],
+			[0, 4, 5], [0, 5, 1],
+			[1, 5, 6], [1, 6, 2],
+			[2, 6, 7], [2, 7, 3],
+			[3, 7, 4], [3, 4, 0],
 		]
 		for triangle in triangles:
 			var distance := _pick_triangle(
@@ -432,6 +508,17 @@ func _world_point_in_rect(world_position: Vector3, rect: Rect2) -> bool:
 
 
 func _entity_intersects_rect(entity: EditorEntity, rect: Rect2) -> bool:
+	if entity is EditorJoint:
+		var joint := entity as EditorJoint
+		var attachments := joint.get_attachment_points()
+		if attachments.size() >= 2:
+			return _world_segment_intersects_rect(
+				attachments[0].global_position,
+				attachments[1].global_position,
+				rect
+			)
+		return false
+
 	if entity is EditorBeam:
 		var beam := entity as EditorBeam
 		if beam.point_a == null or beam.point_b == null:
@@ -459,12 +546,12 @@ func _entity_intersects_rect(entity: EditorEntity, rect: Rect2) -> bool:
 
 	if entity is EditorCube and points.size() == 8:
 		var triangles := [
-			[0, 3, 2], [0, 2, 1],
-			[4, 5, 6], [4, 6, 7],
-			[0, 1, 5], [0, 5, 4],
-			[1, 2, 6], [1, 6, 5],
-			[2, 3, 7], [2, 7, 6],
-			[3, 0, 4], [3, 4, 7],
+			[0, 1, 2], [0, 2, 3],
+			[4, 7, 6], [4, 6, 5],
+			[0, 4, 5], [0, 5, 1],
+			[1, 5, 6], [1, 6, 2],
+			[2, 6, 7], [2, 7, 3],
+			[3, 7, 4], [3, 4, 0],
 		]
 		for triangle in triangles:
 			if _world_triangle_intersects_rect(
@@ -552,6 +639,54 @@ func _finish_marquee() -> void:
 	_marquee_active = false
 	marquee_changed.emit(false, Rect2())
 	Input.set_default_cursor_shape(Input.CURSOR_ARROW)
+
+
+func set_ui_blocked(value: bool) -> void:
+	_ui_blocked = value
+	if value:
+		if _radial_active:
+			_finish_radial_menu(false)
+		_rmb_down = false
+
+
+func is_ui_blocked() -> bool:
+	return _ui_blocked
+
+
+func _open_radial_menu() -> void:
+	if _radial_active or not _rmb_down:
+		return
+	_radial_active = true
+	_radial_hover = -1
+	_set_hovered(null)
+	Input.set_default_cursor_shape(Input.CURSOR_CROSS)
+	radial_started.emit(_rmb_start)
+	radial_hover_changed.emit(-1)
+
+
+func _update_radial_menu(position: Vector2) -> void:
+	var offset := position - _rmb_start
+	var hovered := -1
+	if offset.length() >= RADIAL_DEADZONE:
+		var from_top := fposmod(atan2(offset.x, -offset.y), TAU)
+		var sector := TAU / float(RADIAL_PRESETS.size())
+		hovered = int(floor(from_top / sector)) % RADIAL_PRESETS.size()
+	if hovered == _radial_hover:
+		return
+	_radial_hover = hovered
+	radial_hover_changed.emit(hovered)
+
+
+func _finish_radial_menu(spawn_selected: bool) -> void:
+	var selected := _radial_hover
+	_radial_active = false
+	_rmb_down = false
+	_radial_hover = -1
+	_rmb_hold_time = 0.0
+	Input.set_default_cursor_shape(Input.CURSOR_ARROW)
+	radial_finished.emit()
+	if spawn_selected and selected >= 0 and selected < RADIAL_PRESETS.size():
+		spawn_preset_requested.emit(RADIAL_PRESETS[selected])
 
 
 func _start_grab() -> void:
@@ -922,8 +1057,14 @@ func _fill() -> void:
 
 	var points := _selected_points_only()
 	var beams := _selected_beams_only()
+	var panels := _selected_panels_only()
 	var previous: Array[EditorEntity] = []
 	previous.append_array(_selected)
+
+	if points.is_empty() and panels.size() == 1 and _selected.size() == 1:
+		panels[0].refresh_geometry()
+		_set_selection([panels[0]])
+		return
 
 	if points.size() == 2:
 		var existing := _find_existing_beam(points[0], points[1])
@@ -946,6 +1087,7 @@ func _fill() -> void:
 		var ordered := _order_profile_points(points)
 		var existing := _find_existing_panel(ordered)
 		if existing != null:
+			existing.refresh_geometry()
 			_set_selection([existing])
 			return
 		var created_panels: Array[EditorPanel] = []
@@ -961,6 +1103,11 @@ func _fill() -> void:
 
 	if points.size() == 8:
 		var ordered := _order_cube_points(points)
+		var existing_cube := _find_existing_cube(ordered)
+		if existing_cube != null:
+			existing_cube.refresh_geometry()
+			_set_selection([existing_cube])
+			return
 		var cube := EditorCube.create(ordered)
 		cube.name = "Cube_%02d" % (_structures_root.get_child_count() + 1)
 		_add_structure(cube)
@@ -978,6 +1125,7 @@ func _fill() -> void:
 			return
 		var existing := _find_existing_panel(loop)
 		if existing != null:
+			existing.refresh_geometry()
 			_set_selection([existing])
 			return
 		var created_panels: Array[EditorPanel] = []
@@ -991,6 +1139,188 @@ func _fill() -> void:
 		_push_created(action_name, no_points, created_structures, previous, result)
 
 
+func spawn_preset(preset_id: String) -> void:
+	if _mode != Mode.NONE or _camera == null or _points_root == null or _structures_root == null:
+		return
+
+	var center := _preset_spawn_center()
+	var previous: Array[EditorEntity] = []
+	previous.append_array(_selected)
+	var created_points: Array[EditorPoint] = []
+	var created_structures: Array[EditorEntity] = []
+	var created_beams: Array[EditorBeam] = []
+	var created_panels: Array[EditorPanel] = []
+	var result: Array[EditorEntity] = []
+	var action_name := "Tab: деталь"
+
+	match preset_id:
+		"cube":
+			var cube_center := Vector3(center.x, 1.0, center.z)
+			var offsets := [
+				Vector3(-1.0, -1.0, -1.0), Vector3(1.0, -1.0, -1.0),
+				Vector3(1.0, -1.0, 1.0), Vector3(-1.0, -1.0, 1.0),
+				Vector3(-1.0, 1.0, -1.0), Vector3(1.0, 1.0, -1.0),
+				Vector3(1.0, 1.0, 1.0), Vector3(-1.0, 1.0, 1.0),
+			]
+			var cube_points: Array[EditorPoint] = []
+			for offset in offsets:
+				cube_points.append(_create_point(cube_center + offset))
+			created_points.append_array(cube_points)
+
+			var cube := EditorCube.create(cube_points)
+			cube.name = "Cube_%02d" % (_structures_root.get_child_count() + 1)
+			_add_structure(cube)
+			created_structures.append(cube)
+
+			var edges := [
+				[0, 1], [1, 2], [2, 3], [3, 0],
+				[4, 5], [5, 6], [6, 7], [7, 4],
+				[0, 4], [1, 5], [2, 6], [3, 7],
+			]
+			for edge in edges:
+				_ensure_beam(cube_points[edge[0]], cube_points[edge[1]], created_beams)
+			for beam in created_beams:
+				created_structures.append(beam)
+			result.append(cube)
+			action_name = "Tab: куб 2×2×2"
+
+		"plane":
+			var plane_center := Vector3(center.x, 0.5, center.z)
+			var plane_offsets := [
+				Vector3(-2.0, 0.0, -2.0),
+				Vector3(2.0, 0.0, -2.0),
+				Vector3(2.0, 0.0, 2.0),
+				Vector3(-2.0, 0.0, 2.0),
+			]
+			var plane_points: Array[EditorPoint] = []
+			for offset in plane_offsets:
+				plane_points.append(_create_point(plane_center + offset))
+			created_points.append_array(plane_points)
+
+			var panel := _create_panel(plane_points, created_panels)
+			created_structures.append(panel)
+			for i in 4:
+				var next := (i + 1) % 4
+				_ensure_beam(plane_points[i], plane_points[next], created_beams)
+			for beam in created_beams:
+				created_structures.append(beam)
+			result.append(panel)
+			action_name = "Tab: плоскость 4×4"
+
+		"beam":
+			var direction := _spawn_right_direction()
+			var anchor := _find_nearest_joint_anchor(
+				center,
+				maxf(1.6, _get_grid_step() * 3.0)
+			)
+			var beam: EditorBeam
+			if anchor != null:
+				var end_position := EditorPoint.snap_to_grid(
+					anchor.global_position + direction * 3.0,
+					_get_grid_step()
+				)
+				var end_point := _create_point(end_position)
+				created_points.append(end_point)
+				beam = _ensure_beam(anchor, end_point, created_beams)
+			else:
+				var a_position := EditorPoint.snap_to_grid(
+					center - direction * 1.5,
+					_get_grid_step()
+				)
+				var b_position := EditorPoint.snap_to_grid(
+					center + direction * 1.5,
+					_get_grid_step()
+				)
+				var a := _create_point(a_position)
+				var b := _create_point(b_position)
+				created_points.append(a)
+				created_points.append(b)
+				beam = _ensure_beam(a, b, created_beams)
+
+			if beam != null:
+				for created_beam in created_beams:
+					created_structures.append(created_beam)
+				result.append(beam)
+				action_name = "Tab: балка 3 м"
+
+		"hinge", "motor":
+			var axis_direction := _spawn_right_direction()
+			var half_length := 0.8
+			var a := _create_point(center - axis_direction * half_length)
+			var b := _create_point(center + axis_direction * half_length)
+			created_points.append(a)
+			created_points.append(b)
+			var joint: EditorJoint
+			if preset_id == "hinge":
+				joint = EditorHinge.create(a, b)
+				joint.name = "Hinge_%02d" % (_structures_root.get_child_count() + 1)
+				action_name = "Tab: шарнир"
+			else:
+				joint = EditorMotor.create(a, b)
+				joint.name = "Motor_%02d" % (_structures_root.get_child_count() + 1)
+				action_name = "Tab: мотор"
+			_add_structure(joint)
+			created_structures.append(joint)
+			result.append(joint)
+
+		_:
+			return
+
+	if result.is_empty():
+		return
+
+	_refresh_structures()
+	_set_selection(result)
+	_push_created(action_name, created_points, created_structures, previous, result)
+
+
+func _preset_spawn_center() -> Vector3:
+	var step := _get_grid_step()
+	var screen_center := get_viewport().get_visible_rect().size * 0.5
+	var origin := _camera.project_ray_origin(screen_center)
+	var direction := _camera.project_ray_normal(screen_center)
+	var hit: Variant = Plane(Vector3.UP, 0.5).intersects_ray(origin, direction)
+	var point: Vector3
+	if hit != null:
+		point = hit
+	else:
+		point = _camera.global_position - _camera.global_basis.z.normalized() * 6.0
+
+	point.y = 0.5
+	var distance := point.distance_to(_camera.global_position)
+	if distance < 2.0 or distance > 30.0:
+		point = _camera.global_position - _camera.global_basis.z.normalized() * 6.0
+		point.y = 0.5
+	return EditorPoint.snap_to_grid(point, step)
+
+
+func _spawn_right_direction() -> Vector3:
+	var right := _camera.global_basis.x
+	right.y = 0.0
+	if right.length_squared() < EPSILON:
+		right = Vector3.RIGHT
+	return right.normalized()
+
+
+func _find_nearest_joint_anchor(world_position: Vector3, max_distance: float) -> EditorPoint:
+	if _structures_root == null:
+		return null
+	var best: EditorPoint = null
+	var best_distance := max_distance
+	for child in _structures_root.get_children():
+		var joint := child as EditorJoint
+		if joint == null:
+			continue
+		for point in joint.get_attachment_points():
+			if point == null or not is_instance_valid(point):
+				continue
+			var distance := point.global_position.distance_to(world_position)
+			if distance < best_distance:
+				best_distance = distance
+				best = point
+	return best
+
+
 func _weld_selected() -> void:
 	if _mode != Mode.NONE:
 		return
@@ -1001,8 +1331,92 @@ func _weld_selected() -> void:
 		return
 
 	var beams := _selected_beams_only()
+	var joints := _selected_joints_only()
+	if joints.size() == 1 and beams.size() == 1 and _selected.size() == 2:
+		_attach_beam_to_joint(beams[0], joints[0])
+		return
+
 	if beams.size() == 2 and _selected.size() == 2:
 		_weld_two_beams(beams[0], beams[1])
+
+
+func _attach_beam_to_joint(beam: EditorBeam, joint: EditorJoint) -> void:
+	if beam == null or joint == null:
+		return
+	if beam.point_a == null or beam.point_b == null:
+		return
+
+	var anchors := joint.get_attachment_points()
+	if anchors.is_empty():
+		return
+
+	var best_endpoint: EditorPoint = null
+	var best_anchor: EditorPoint = null
+	var best_distance := INF
+	for endpoint_variant in [beam.point_a, beam.point_b]:
+		var endpoint := endpoint_variant as EditorPoint
+		if endpoint == null:
+			continue
+		for anchor in anchors:
+			var distance: float = endpoint.global_position.distance_to(anchor.global_position)
+			if distance < best_distance:
+				best_distance = distance
+				best_endpoint = endpoint
+				best_anchor = anchor
+
+	if best_endpoint == null or best_anchor == null or best_endpoint == best_anchor:
+		return
+
+	var was_a := beam.point_a == best_endpoint
+	var previous: Array[EditorEntity] = []
+	previous.append_array(_selected)
+
+	var old_parent := best_endpoint.get_parent()
+	var old_name := best_endpoint.name
+	var old_id := best_endpoint.point_id
+
+	var apply := func(reconnect_to_anchor: bool) -> void:
+		if reconnect_to_anchor:
+			if was_a:
+				beam.point_a = best_anchor
+			else:
+				beam.point_b = best_anchor
+		else:
+			if was_a:
+				beam.point_a = best_endpoint
+			else:
+				beam.point_b = best_endpoint
+		beam.refresh_geometry()
+		_refresh_structures()
+		if reconnect_to_anchor:
+			if old_parent != null and not _point_has_structures(best_endpoint):
+				old_parent.remove_child(best_endpoint)
+			_set_selection([beam])
+		else:
+			if best_endpoint.get_parent() == null:
+				_points_root.add_child(best_endpoint)
+				best_endpoint.name = old_name
+				best_endpoint.point_id = old_id
+			_set_selection(previous)
+
+	var undo_call := func() -> void:
+		apply.call(false)
+
+	var redo_call := func() -> void:
+		apply.call(true)
+
+	apply.call(true)
+	_history.push("M: крепление балки к шарниру", undo_call, redo_call)
+
+
+func _point_has_structures(point: EditorPoint) -> bool:
+	if _structures_root == null:
+		return false
+	for child in _structures_root.get_children():
+		var structure := child as EditorEntity
+		if structure != null and structure.get_editor_points().has(point):
+			return true
+	return false
 
 
 func _weld_selected_points(into_first: bool) -> void:
@@ -1605,6 +2019,16 @@ func _find_existing_panel(points: Array[EditorPoint]) -> EditorPanel:
 	return null
 
 
+func _find_existing_cube(points: Array[EditorPoint]) -> EditorCube:
+	if _structures_root == null or points.size() != 8:
+		return null
+	for child in _structures_root.get_children():
+		var cube := child as EditorCube
+		if cube != null and _same_point_set(cube.points, points):
+			return cube
+	return null
+
+
 func _same_point_set(first: Array[EditorPoint], second: Array[EditorPoint]) -> bool:
 	if first.size() != second.size():
 		return false
@@ -1655,6 +2079,14 @@ func _selected_panels_only() -> Array[EditorPanel]:
 	for entity in _selected:
 		if entity is EditorPanel:
 			result.append(entity as EditorPanel)
+	return result
+
+
+func _selected_joints_only() -> Array[EditorJoint]:
+	var result: Array[EditorJoint] = []
+	for entity in _selected:
+		if entity is EditorJoint:
+			result.append(entity as EditorJoint)
 	return result
 
 
@@ -1864,10 +2296,11 @@ func get_context_hint() -> String:
 			return "E · %s%s — ЛКМ создать · ПКМ / Esc отменить" % [label, _axis_suffix()]
 
 	if _selected.is_empty():
-		return "ЛКМ — выбрать точку, балку или грань"
+		return "ЛКМ — выбрать · Tab — меню деталей · ПКМ удержание — круговое меню"
 
 	var points := _selected_points_only()
 	var beams := _selected_beams_only()
+	var joints := _selected_joints_only()
 
 	if _selected.size() == 1:
 		var entity := _selected[0]
@@ -1880,8 +2313,16 @@ func get_context_hint() -> String:
 			if panel.points.size() == 3:
 				return "E — призма · G — двигать · X — удалить"
 			return "E — куб · G — двигать · X — удалить"
+		if entity is EditorHinge:
+			return "Шарнир · 2 крепления · M с балкой — прикрепить · G — двигать"
+		if entity is EditorMotor:
+			var motor := entity as EditorMotor
+			return "Мотор · %s · M с балкой — прикрепить · G — двигать" % motor.get_parameters_text()
 		if entity is EditorCube:
 			return "G — двигать · X — удалить"
+
+	if joints.size() == 1 and beams.size() == 1 and _selected.size() == 2:
+		return "M — прикрепить балку к креплению · G — двигать"
 
 	if beams.size() == 2 and _selected.size() == 2:
 		return "M — соединить концы / выровнять балки · G — двигать"

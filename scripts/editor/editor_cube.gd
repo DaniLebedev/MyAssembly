@@ -10,6 +10,8 @@ var points: Array[EditorPoint] = []
 
 var _mesh: MeshInstance3D
 var _material: StandardMaterial3D
+var _body: StaticBody3D
+var _collision: CollisionShape3D
 
 
 static func create(cube_points: Array[EditorPoint]) -> EditorCube:
@@ -30,14 +32,30 @@ func get_editor_points() -> Array[EditorPoint]:
 
 
 func refresh_geometry() -> void:
-	if _mesh == null or points.size() != 8:
+	if _mesh == null or _collision == null or points.size() != 8:
+		_clear_geometry()
 		return
 	var vertices := PackedVector3Array()
 	for point in points:
-		if point == null:
+		if point == null or not is_instance_valid(point):
+			_clear_geometry()
 			return
-		vertices.append(point.global_position)
+		vertices.append(to_local(point.global_position))
 	_mesh.mesh = EditorGeometry.make_cube_mesh(vertices)
+
+	var faces := EditorGeometry.make_cube_collision(vertices)
+	var shape := ConcavePolygonShape3D.new()
+	shape.set_faces(faces)
+	_collision.shape = shape
+	visible = not faces.is_empty()
+
+
+func _clear_geometry() -> void:
+	if _mesh != null:
+		_mesh.mesh = null
+	if _collision != null:
+		_collision.shape = null
+	visible = false
 
 
 func _ensure_visuals() -> void:
@@ -53,7 +71,16 @@ func _ensure_visuals() -> void:
 	_mesh = MeshInstance3D.new()
 	_mesh.name = "Visual"
 	_mesh.material_override = _material
+	_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(_mesh)
+
+	_body = StaticBody3D.new()
+	_body.name = "StaticBody"
+	add_child(_body)
+
+	_collision = CollisionShape3D.new()
+	_collision.name = "CollisionShape3D"
+	_body.add_child(_collision)
 
 
 func _refresh_visual() -> void:

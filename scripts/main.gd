@@ -17,6 +17,8 @@ const DEMO_POSITIONS := [
 @onready var _editor: EditorController = $Editor
 @onready var _hud: Control = %HUD
 @onready var _selection_box: SelectionBoxOverlay = %SelectionBox
+@onready var _spawn_menu: SpawnMenu = %SpawnMenu
+@onready var _radial_menu: RadialMenu = %RadialMenu
 @onready var _context_hint: Label = %ContextHint
 @onready var _selection_value: Label = %SelectionValue
 @onready var _points_value: Label = %PointsValue
@@ -34,7 +36,64 @@ func _ready() -> void:
 	_editor.history_changed.connect(_refresh_hud)
 	_editor.context_changed.connect(_refresh_hud)
 	_editor.marquee_changed.connect(_on_marquee_changed)
+	_editor.spawn_preset_requested.connect(_on_preset_selected)
+	_editor.radial_started.connect(_on_radial_started)
+	_editor.radial_hover_changed.connect(_on_radial_hover_changed)
+	_editor.radial_finished.connect(_on_radial_finished)
+	_spawn_menu.preset_selected.connect(_on_preset_selected)
+	_spawn_menu.opened.connect(_on_spawn_menu_opened)
+	_spawn_menu.closed.connect(_on_spawn_menu_closed)
 	_refresh_hud()
+
+
+func _input(event: InputEvent) -> void:
+	if not event is InputEventKey:
+		return
+	var key := event as InputEventKey
+	if not key.pressed or key.echo:
+		return
+
+	if _is_key(key, KEY_TAB):
+		if _editor.is_modal_active():
+			return
+		_spawn_menu.toggle()
+		get_viewport().set_input_as_handled()
+		return
+
+	if _is_key(key, KEY_ESCAPE) and _spawn_menu.is_open():
+		_spawn_menu.close()
+		get_viewport().set_input_as_handled()
+
+
+func _is_key(event: InputEventKey, keycode: Key) -> bool:
+	return event.keycode == keycode or event.physical_keycode == keycode
+
+
+func _on_spawn_menu_opened() -> void:
+	_editor.set_ui_blocked(true)
+
+
+func _on_spawn_menu_closed() -> void:
+	_editor.set_ui_blocked(false)
+
+
+func _on_preset_selected(preset_id: String) -> void:
+	if _spawn_menu.is_open():
+		_spawn_menu.close()
+	_editor.spawn_preset(preset_id)
+	_refresh_hud()
+
+
+func _on_radial_started(center: Vector2) -> void:
+	_radial_menu.show_menu(center)
+
+
+func _on_radial_hover_changed(index: int) -> void:
+	_radial_menu.set_hovered(index)
+
+
+func _on_radial_finished() -> void:
+	_radial_menu.hide_menu()
 
 
 func _spawn_demo_points() -> void:

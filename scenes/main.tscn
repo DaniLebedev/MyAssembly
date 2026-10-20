@@ -1,10 +1,12 @@
-[gd_scene load_steps=12 format=3]
+[gd_scene load_steps=14 format=3]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
 [ext_resource type="Script" path="res://scripts/editor/camera_rig.gd" id="2_camera"]
 [ext_resource type="Script" path="res://scripts/editor/grid.gd" id="3_grid"]
 [ext_resource type="Script" path="res://scripts/editor/editor_controller.gd" id="4_editor"]
 [ext_resource type="Script" path="res://scripts/ui/selection_box.gd" id="5_selection"]
+[ext_resource type="Script" path="res://scripts/ui/spawn_menu.gd" id="6_spawn"]
+[ext_resource type="Script" path="res://scripts/ui/radial_menu.gd" id="7_radial"]
 
 [sub_resource type="ProceduralSkyMaterial" id="SkyMaterial_editor"]
 sky_top_color = Color(0.055, 0.075, 0.11, 1)
@@ -19,9 +21,9 @@ sky_material = SubResource("SkyMaterial_editor")
 [sub_resource type="Environment" id="Environment_editor"]
 background_mode = 2
 sky = SubResource("Sky_editor")
-ambient_light_source = 3
-ambient_light_sky_contribution = 1.0
-ambient_light_energy = 0.75
+ambient_light_source = 2
+ambient_light_color = Color(0.36, 0.44, 0.56, 1)
+ambient_light_energy = 0.7
 reflected_light_source = 2
 tonemap_mode = 2
 
@@ -246,7 +248,7 @@ text = "ЛКМ — выбрать  ·  Shift+ЛКМ — добавить / сн�
 layout_mode = 2
 theme_override_colors/font_color = Color(0.78, 0.84, 0.92, 1)
 theme_override_font_sizes/font_size = 13
-text = "G — двигать  ·  E — выдавить  ·  F — заполнить  ·  M — сварить"
+text = "G — двигать  ·  E — выдавить  ·  F — заполнить  ·  M — сварить / прикрепить"
 
 [node name="Hint3" type="Label" parent="UI/HUD/Margin/VBox/BottomRow/ControlsPanel/ControlsMargin/ControlsVBox"]
 layout_mode = 2
@@ -264,9 +266,15 @@ text = "M — сварить точки / 2 балки  ·  Ctrl+M — в пер
 layout_mode = 2
 theme_override_colors/font_color = Color(0.78, 0.84, 0.92, 1)
 theme_override_font_sizes/font_size = 13
-text = "СКМ — вращение  ·  Shift+СКМ — панорама  ·  Alt+ЛКМ — вращение"
+text = "Tab — меню деталей  ·  ПКМ (удержание) — круговое меню"
 
 [node name="Hint6" type="Label" parent="UI/HUD/Margin/VBox/BottomRow/ControlsPanel/ControlsMargin/ControlsVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.78, 0.84, 0.92, 1)
+theme_override_font_sizes/font_size = 13
+text = "СКМ — вращение  ·  Shift+СКМ — панорама  ·  Alt+ЛКМ — вращение"
+
+[node name="Hint7" type="Label" parent="UI/HUD/Margin/VBox/BottomRow/ControlsPanel/ControlsMargin/ControlsVBox"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.78, 0.84, 0.92, 1)
 theme_override_font_sizes/font_size = 13
@@ -427,3 +435,25 @@ theme_override_font_sizes/font_size = 12
 text = "—"
 horizontal_alignment = 2
 text_overrun_behavior = 3
+
+[node name="SpawnMenu" type="Control" parent="UI"]
+unique_name_in_owner = true
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("6_spawn")
+
+[node name="RadialMenu" type="Control" parent="UI"]
+unique_name_in_owner = true
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("7_radial")

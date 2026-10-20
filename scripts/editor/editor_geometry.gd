@@ -44,14 +44,48 @@ static func make_cube_mesh(vertices: PackedVector3Array) -> ArrayMesh:
 	if vertices.size() != 8:
 		return ArrayMesh.new()
 	var triangles := PackedInt32Array([
-		0, 3, 2, 0, 2, 1,
-		4, 5, 6, 4, 6, 7,
-		0, 1, 5, 0, 5, 4,
-		1, 2, 6, 1, 6, 5,
-		2, 3, 7, 2, 7, 6,
-		3, 0, 4, 3, 4, 7,
+		0, 1, 2, 0, 2, 3,
+		4, 7, 6, 4, 6, 5,
+		0, 4, 5, 0, 5, 1,
+		1, 5, 6, 1, 6, 2,
+		2, 6, 7, 2, 7, 3,
+		3, 7, 4, 3, 4, 0,
 	])
 	return _build_flat_mesh(vertices, triangles)
+
+
+static func make_panel_collision(vertices: PackedVector3Array) -> PackedVector3Array:
+	var faces := PackedVector3Array()
+	if vertices.size() < 3:
+		return faces
+	for i in range(1, vertices.size() - 1):
+		faces.append_array(PackedVector3Array([
+			vertices[0],
+			vertices[i],
+			vertices[i + 1],
+		]))
+	return faces
+
+
+static func make_cube_collision(vertices: PackedVector3Array) -> PackedVector3Array:
+	var faces := PackedVector3Array()
+	if vertices.size() != 8:
+		return faces
+	var triangles := PackedInt32Array([
+		0, 1, 2, 0, 2, 3,
+		4, 7, 6, 4, 6, 5,
+		0, 4, 5, 0, 5, 1,
+		1, 5, 6, 1, 6, 2,
+		2, 6, 7, 2, 7, 3,
+		3, 7, 4, 3, 4, 0,
+	])
+	for i in range(0, triangles.size(), 3):
+		faces.append_array(PackedVector3Array([
+			vertices[triangles[i]],
+			vertices[triangles[i + 1]],
+			vertices[triangles[i + 2]],
+		]))
+	return faces
 
 
 static func ray_triangle(
