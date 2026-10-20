@@ -240,7 +240,7 @@ text = "УПРАВЛЕНИЕ"
 layout_mode = 2
 theme_override_colors/font_color = Color(0.78, 0.84, 0.92, 1)
 theme_override_font_sizes/font_size = 13
-text = "ЛКМ — выбрать  ·  Shift+ЛКМ — добавить / рамка"
+text = "ЛКМ — выбрать  ·  Shift+ЛКМ — добавить / снять  ·  рамка — ЛКМ в пустоте"
 
 [node name="Hint2" type="Label" parent="UI/HUD/Margin/VBox/BottomRow/ControlsPanel/ControlsMargin/ControlsVBox"]
 layout_mode = 2

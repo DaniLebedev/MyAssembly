@@ -159,7 +159,8 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 			if _mode != Mode.NONE:
 				_confirm_modal()
 			else:
-				_on_left_pressed(event.position, Input.is_key_pressed(KEY_SHIFT))
+				var additive := event.shift_pressed or Input.is_key_pressed(KEY_SHIFT)
+				_on_left_pressed(event.position, additive)
 		else:
 			_on_left_released()
 	elif event.button_index == MOUSE_BUTTON_RIGHT:
@@ -188,18 +189,16 @@ func _on_left_pressed(position: Vector2, additive: bool) -> void:
 	var hit := _pick_entity(position)
 	if hit == null:
 		_set_hovered(null)
-		if additive:
-			_begin_marquee(position)
-		else:
+		if not additive:
 			_set_selection([])
+		_begin_marquee(position)
 		return
 
 	if additive:
 		_toggle_selection(hit)
 		return
 
-	if _selected.size() != 1 or _selected[0] != hit:
-		_set_selection([hit])
+	_set_selection([hit])
 
 
 func _on_left_released() -> void:
@@ -400,23 +399,153 @@ func _update_marquee(position: Vector2) -> void:
 
 
 func _update_marquee_selection(rect: Rect2) -> void:
-	if _camera == null or _points_root == null:
+	if _camera == null:
 		return
 
 	var next: Array[EditorEntity] = []
 	next.append_array(_marquee_base)
 	var hit_area := rect.grow(4.0)
 
-	for child in _points_root.get_children():
-		var point := child as EditorPoint
-		if point == null or next.has(point):
-			continue
-		if _camera.is_position_behind(point.global_position):
-			continue
-		if hit_area.has_point(_camera.unproject_position(point.global_position)):
-			next.append(point)
+	if _points_root != null:
+		for child in _points_root.get_children():
+			var point := child as EditorPoint
+			if point == null or next.has(point):
+				continue
+			if _world_point_in_rect(point.global_position, hit_area):
+				next.append(point)
+
+	if _structures_root != null:
+		for child in _structures_root.get_children():
+			var entity := child as EditorEntity
+			if entity == null or next.has(entity):
+				continue
+			if _entity_intersects_rect(entity, hit_area):
+				next.append(entity)
 
 	_set_selection(next)
+
+
+func _world_point_in_rect(world_position: Vector3, rect: Rect2) -> bool:
+	if _camera == null or _camera.is_position_behind(world_position):
+		return false
+	return rect.has_point(_camera.unproject_position(world_position))
+
+
+func _entity_intersects_rect(entity: EditorEntity, rect: Rect2) -> bool:
+	if entity is EditorBeam:
+		var beam := entity as EditorBeam
+		if beam.point_a == null or beam.point_b == null:
+			return false
+		return _world_segment_intersects_rect(
+			beam.point_a.global_position,
+			beam.point_b.global_position,
+			rect
+		)
+
+	var points := entity.get_editor_points()
+	if points.size() < 3:
+		return false
+
+	if entity is EditorPanel:
+		for i in range(1, points.size() - 1):
+			if _world_triangle_intersects_rect(
+				points[0].global_position,
+				points[i].global_position,
+				points[i + 1].global_position,
+				rect
+			):
+				return true
+		return false
+
+	if entity is EditorCube and points.size() == 8:
+		var triangles := [
+			[0, 3, 2], [0, 2, 1],
+			[4, 5, 6], [4, 6, 7],
+			[0, 1, 5], [0, 5, 4],
+			[1, 2, 6], [1, 6, 5],
+			[2, 3, 7], [2, 7, 6],
+			[3, 0, 4], [3, 4, 7],
+		]
+		for triangle in triangles:
+			if _world_triangle_intersects_rect(
+				points[triangle[0]].global_position,
+				points[triangle[1]].global_position,
+				points[triangle[2]].global_position,
+				rect
+			):
+				return true
+
+	return false
+
+
+func _world_segment_intersects_rect(a: Vector3, b: Vector3, rect: Rect2) -> bool:
+	if _camera == null or _camera.is_position_behind(a) or _camera.is_position_behind(b):
+		return false
+	var pa := _camera.unproject_position(a)
+	var pb := _camera.unproject_position(b)
+	if rect.has_point(pa) or rect.has_point(pb):
+		return true
+	return _segment_intersects_rect_2d(pa, pb, rect)
+
+
+func _world_triangle_intersects_rect(
+	a: Vector3,
+	b: Vector3,
+	c: Vector3,
+	rect: Rect2
+) -> bool:
+	if _camera == null:
+		return false
+	if _camera.is_position_behind(a) or _camera.is_position_behind(b) or _camera.is_position_behind(c):
+		return false
+	return _triangle_intersects_rect_2d(
+		_camera.unproject_position(a),
+		_camera.unproject_position(b),
+		_camera.unproject_position(c),
+		rect
+	)
+
+
+func _triangle_intersects_rect_2d(
+	a: Vector2,
+	b: Vector2,
+	c: Vector2,
+	rect: Rect2
+) -> bool:
+	if rect.has_point(a) or rect.has_point(b) or rect.has_point(c):
+		return true
+
+	var polygon := PackedVector2Array([a, b, c])
+	for corner in _rect_corners(rect):
+		if Geometry2D.is_point_in_polygon(corner, polygon):
+			return true
+
+	if _segment_intersects_rect_2d(a, b, rect):
+		return true
+	if _segment_intersects_rect_2d(b, c, rect):
+		return true
+	return _segment_intersects_rect_2d(c, a, rect)
+
+
+func _segment_intersects_rect_2d(a: Vector2, b: Vector2, rect: Rect2) -> bool:
+	var corners := _rect_corners(rect)
+	for i in 4:
+		var c := corners[i]
+		var d := corners[(i + 1) % 4]
+		if Geometry2D.segment_intersects_segment(a, b, c, d) != null:
+			return true
+	return false
+
+
+func _rect_corners(rect: Rect2) -> PackedVector2Array:
+	var p := rect.position
+	var s := rect.size
+	return PackedVector2Array([
+		p,
+		Vector2(p.x + s.x, p.y),
+		Vector2(p.x + s.x, p.y + s.y),
+		Vector2(p.x, p.y + s.y),
+	])
 
 
 func _finish_marquee() -> void:
@@ -518,6 +647,19 @@ func _start_extrude() -> void:
 	if _selected.size() == 1 and _selected[0] is EditorPoint:
 		profile.append(_selected[0] as EditorPoint)
 		new_mode = Mode.EXTRUDE_POINT
+	elif points.size() == 2 or points.size() == 3 or points.size() == 4:
+		# Профиль важнее прочих выбранных деталей: рамка может захватить
+		# точки вместе с их балками и гранью.
+		if points.size() == 2:
+			profile.append_array(points)
+			new_mode = Mode.EXTRUDE_LINE
+		else:
+			var existing := _find_existing_panel(points)
+			if existing != null:
+				profile.append_array(existing.points)
+			else:
+				profile.append_array(_order_profile_points(points))
+			new_mode = Mode.EXTRUDE_LOOP
 	elif _selected.size() == 1 and _selected[0] is EditorBeam:
 		var beam := _selected[0] as EditorBeam
 		if beam.point_a != null and beam.point_b != null:
@@ -529,18 +671,7 @@ func _start_extrude() -> void:
 		if panel.points.size() >= 3:
 			profile.append_array(panel.points)
 			new_mode = Mode.EXTRUDE_LOOP
-	elif _selected.size() == points.size() and (points.size() == 2 or points.size() == 3 or points.size() == 4):
-		if points.size() == 2:
-			profile.append_array(points)
-			new_mode = Mode.EXTRUDE_LINE
-		else:
-			var existing := _find_existing_panel(points)
-			if existing != null:
-				profile.append_array(existing.points)
-			else:
-				profile.append_array(_order_profile_points(points))
-			new_mode = Mode.EXTRUDE_LOOP
-	elif _selected.size() == beams.size() and (beams.size() == 3 or beams.size() == 4):
+	elif (beams.size() == 3 or beams.size() == 4) and points.is_empty():
 		var loop := _beams_to_loop(beams)
 		if loop.size() == beams.size():
 			profile.append_array(loop)
@@ -1764,17 +1895,13 @@ func get_context_hint() -> String:
 
 	match points.size():
 		2:
-			if _selected.size() == points.size():
-				return "E — плоскость · F — балка · M — сварить"
+			return "E — плоскость · F — балка · M — сварить"
 		3:
-			if _selected.size() == points.size():
-				return "E — призма · F — треугольник · M — сварить"
+			return "E — призма · F — треугольник · M — сварить"
 		4:
-			if _selected.size() == points.size():
-				return "E — куб · F — панель · M — сварить"
+			return "E — куб · F — панель · M — сварить"
 		8:
-			if _selected.size() == points.size():
-				return "F — куб · G — двигать · M — сварить"
+			return "F — куб · G — двигать · M — сварить"
 
 	if points.size() > 1:
 		return "M — сварить точки · G — двигать"
@@ -1790,6 +1917,12 @@ func get_selected_points() -> Array[EditorPoint]:
 	for entity in _selected:
 		if entity is EditorPoint:
 			result.append(entity as EditorPoint)
+	return result
+
+
+func get_selected_objects() -> Array[EditorEntity]:
+	var result: Array[EditorEntity] = []
+	result.append_array(_selected)
 	return result
 
 
